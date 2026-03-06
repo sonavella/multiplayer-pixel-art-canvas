@@ -1,4 +1,9 @@
 import{useState,useRef,useEffect,useCallback} from "react";
+import { createClient } from '@supabase/supabase-js'; 
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;1,400&display=swap');`;
 
    const P = {
@@ -203,15 +208,35 @@ export default function ForestPhotoWall() {
   const [pan, setPan] = useState({ x: -100, y: -40 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [hovered, setHovered] = useState(null);
   const [newPhoto, setNewPhoto] = useState(false);
   const [uploadPulse, setUploadPulse] = useState(false);
   const [tick, setTick] = useState(0);
+  const [realPhotos, setRealPhotos] = useState([]);
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 70);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const fetchPhotos = async () => {
+      console.log("Checking the Catalog for saved photos...");
+      
+      const { data, error } = await supabase
+        .from('pinned_photos')
+        .select('*');
+
+      if (error) {
+        console.error("Failed to read the Catalog!", error);
+      } else {
+        console.log("Found photos!", data);
+        setRealPhotos(data); 
+      }
+    };
+    fetchPhotos();
+  }, []); 
 
   const onDown = useCallback((e) => {
     if (e.target.closest("button")) return;
@@ -229,9 +254,62 @@ export default function ForestPhotoWall() {
 
   const onUp = useCallback(() => setIsDragging(false), []);
 
-  const handleUpload = () => {
+  const handleUploadClick = () => {
+    if (fileInputRef.current) {
+     fileInputRef.current.click(); 
+    }
+  };
+ 
+  
+  const handleFileSelected = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return; 
+
     setUploadPulse(true);
-    setTimeout(() => { setNewPhoto(true); setUploadPulse(false); }, 1100);
+    
+    console.log("1. Sending heavy photo to the Warehouse...");
+
+    const fileName = `${Date.now()}-${file.name}`;
+
+    const { data: storageData, error: storageError } = await supabase.storage
+      .from('wall-photos')
+      .upload(fileName, file);
+
+    if (storageError) {
+      console.error("Warehouse error!", storageError);
+      setUploadPulse(false);
+      return;
+    }
+
+    console.log("2. Getting the receipt link...");
+    
+    const { data: publicData } = supabase.storage
+      .from('wall-photos')
+      .getPublicUrl(fileName);
+      
+    const imageUrl = publicData.publicUrl;
+
+    console.log("3. Writing the Index Card to the Database...");
+   
+    const { error: dbError } = await supabase
+      .from('pinned_photos')
+      .insert([
+        { 
+          url: imageUrl, 
+          x: -pan.x + (window.innerWidth / 2) - 50, 
+          y: -pan.y + (window.innerHeight / 2) - 50, 
+          rot: (Math.random() - 0.5) * 22 
+        }
+      ]);
+
+    if (dbError) {
+      console.error("Catalog error!", dbError);
+    } else {
+      console.log("SUCCESS! Photo is permanently saved in the cloud.");
+      setNewPhoto(true);
+    }
+
+    setUploadPulse(false);
   };
 
   // animated values
@@ -605,6 +683,38 @@ export default function ForestPhotoWall() {
               onMouseEnter={() => setHovered(p.uid)}
               onMouseLeave={() => setHovered(null)}
             >
+            {/* ═══ REAL UPLOADED PHOTOS ═══ */}
+          {realPhotos.map((p) => (
+            <div
+              key={p.id}
+              className="fw-card"
+              style={{
+                position: "absolute",
+                left: p.x, 
+                top: p.y,
+                width: 100, 
+                height: 120,
+                transform: `rotate(${p.rot}deg)`,
+                zIndex: Math.floor(p.y) + 20,
+              }}
+            >
+              {/* The Paper Frame */}
+              <div style={{
+                background: P.paper,
+                padding: "6px 6px 20px 6px",
+                width: "100%", height: "100%",
+                boxShadow: "1px 2px 8px rgba(0,0,0,.55)",
+                position: "relative",
+              }}>
+                {/* THE ACTUAL IMAGE FROM CLOUD STORAGE */}
+                <img 
+                  src={p.url} 
+                  alt="Player Upload" 
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+                />
+              </div>
+            </div>
+          ))}
               {/* String/pin from top */}
               {p.stringFrom ? (
                 <div style={{
@@ -630,6 +740,7 @@ export default function ForestPhotoWall() {
                 position:"relative",
               }}>
                 <PhotoIllustration type={p.type} bg={p.bg} fg={p.fg} size={p.size}/>
+                
                 {/* Handwritten label */}
                 <div style={{
                   position:"absolute", bottom:3, left:0, right:0,
@@ -673,7 +784,7 @@ export default function ForestPhotoWall() {
             </div>
           )}
 
-        </div>{/* end world */}
+        </div>
 
         {/* ═══ UI OVERLAY ═══ */}
 
@@ -704,7 +815,14 @@ export default function ForestPhotoWall() {
               📌 pinned!
             </div>
           )}
-          <button className={`fw-upload ${uploadPulse ? "pulse" : ""}`} onClick={handleUpload}>
+          <input 
+          type="file" 
+          accept="image/*" 
+          style={{ display: 'none' }} 
+          ref={fileInputRef} 
+          onChange={handleFileSelected} 
+        />
+          <button className={`fw-upload ${uploadPulse ? "pulse" : ""}`} onClick={handleUploadClick}>
             <span>🌸</span> Pin a Photo
           </button>
         </div>
