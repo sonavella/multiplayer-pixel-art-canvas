@@ -255,6 +255,12 @@ export default function ForestPhotoWall() {
   const onUp = useCallback(() => setIsDragging(false), []);
 
   const handleUploadClick = () => {
+    const today = new Date().toDateString();
+    const lastUpload = localStorage.getItem("lastUploadDate");
+    if (lastUpload === today) {
+      alert("You've already pinned a masterpiece today! 🌸 Come back tomorrow to add another.");
+      return; // This stops the file picker from opening
+    }
     if (fileInputRef.current) {
      fileInputRef.current.click(); 
     }
@@ -307,6 +313,8 @@ export default function ForestPhotoWall() {
     } else {
       console.log("SUCCESS! Photo is permanently saved in the cloud.");
       setNewPhoto(true);
+      const today = new Date().toDateString();
+      localStorage.setItem("lastUploadDate", today);
     }
 
     setUploadPulse(false);
@@ -668,99 +676,101 @@ export default function ForestPhotoWall() {
             </div>
           </div>
 
-          {/* ═══ PHOTO CARDS ═══ */}
-          {photoLayout.map((p) => (
-            <div
-              key={p.uid}
-              className="fw-card"
-              style={{
-                position:"absolute",
-                left: p.x, top: p.y,
-                width: p.size + 24, height: p.size + 42,
-                transform: `rotate(${p.rot}deg)`,
-                zIndex: Math.floor(p.y) + 20,
-              }}
-              onMouseEnter={() => setHovered(p.uid)}
-              onMouseLeave={() => setHovered(null)}
-            >
-            {/* ═══ REAL UPLOADED PHOTOS ═══ */}
-          {realPhotos.map((p) => (
-            <div
-              key={p.id}
-              className="fw-card"
-              style={{
-                position: "absolute",
-                left: p.x, 
-                top: p.y,
-                width: 100, 
-                height: 120,
-                transform: `rotate(${p.rot}deg)`,
-                zIndex: Math.floor(p.y) + 20,
-              }}
-            >
-              {/* The Paper Frame */}
-              <div style={{
-                background: P.paper,
-                padding: "6px 6px 20px 6px",
-                width: "100%", height: "100%",
-                boxShadow: "1px 2px 8px rgba(0,0,0,.55)",
-                position: "relative",
-              }}>
-                {/* THE ACTUAL IMAGE FROM CLOUD STORAGE */}
-                <img 
-                  src={p.url} 
-                  alt="Player Upload" 
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }} 
-                />
-              </div>
-            </div>
-          ))}
-              {/* String/pin from top */}
-              {p.stringFrom ? (
-                <div style={{
-                  position:"absolute", top:-18, left:"50%", transform:"translateX(-50%)",
-                  width:1, height:18, background:P.ropeStr, opacity:.7,
-                }}/>
-              ) : null}
-              {/* Tack */}
-              <div style={{
-                position:"absolute", top: p.stringFrom ? -22 : -6, left:"50%",
-                transform:"translateX(-50%)",
-                width:10, height:10, borderRadius:"50%",
-                background: ["#c84040","#4060c8","#c88040","#408040","#c04080"][p.uid % 5],
-                boxShadow:`0 0 6px rgba(0,0,0,.6)`,
-                zIndex:2,
-              }}/>
-              {/* Paper frame */}
-              <div style={{
-                background: P.paper,
-                padding: "5px 5px 18px 5px",
-                width:"100%", height:"100%",
-                boxShadow:"1px 2px 8px rgba(0,0,0,.55), inset 0 0 0 1px rgba(180,140,100,.3)",
-                position:"relative",
-              }}>
-                <PhotoIllustration type={p.type} bg={p.bg} fg={p.fg} size={p.size}/>
-                
-                {/* Handwritten label */}
-                <div style={{
-                  position:"absolute", bottom:3, left:0, right:0,
-                  textAlign:"center",
-                  fontFamily:"'Caveat',cursive",
-                  fontSize: Math.max(9, p.size / 7) + "px",
-                  fontWeight:600,
-                  color: P.ink,
-                  lineHeight:1,
-                  padding:"0 3px",
-                  overflow:"hidden",
-                }}>
-                  {p.label.length > 12 ? p.label.slice(0,11) + "…" : p.label}
-                </div>
-              </div>
-              {hovered === p.uid && (
-                <div className="fw-caption">{p.caption}</div>
-              )}
-            </div>
-          ))}
+         {/* ═══ PHOTO CARDS ═══ */}
+          {photoLayout.map((p) => (
+            <div
+              key={p.uid}
+              className="fw-card"
+              style={{
+                position:"absolute",
+                left: p.x, top: p.y,
+                width: p.size + 24, height: p.size + 42,
+                transform: `rotate(${p.rot}deg)`,
+                zIndex: Math.floor(p.y) + 20,
+              }}
+              onMouseEnter={() => setHovered(p.uid)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              {/* String/pin from top */}
+              {p.stringFrom ? (
+                <div style={{
+                  position:"absolute", top:-18, left:"50%", transform:"translateX(-50%)",
+                  width:1, height:18, background:P.ropeStr, opacity:.7,
+                }}/>
+              ) : null}
+
+              {/* Tack */}
+              <div style={{
+                position:"absolute", top: p.stringFrom ? -22 : -6, left:"50%",
+                transform:"translateX(-50%)",
+                width:10, height:10, borderRadius:"50%",
+                background: ["#c84040","#4060c8","#c88040","#408040","#c04080"][p.uid % 5],
+                boxShadow:`0 0 6px rgba(0,0,0,.6)`,
+                zIndex:2,
+              }}/>
+
+              {/* Paper frame */}
+              <div style={{
+                background: P.paper,
+                padding: "5px 5px 18px 5px",
+                width:"100%", height:"100%",
+                boxShadow:"1px 2px 8px rgba(0,0,0,.55), inset 0 0 0 1px rgba(180,140,100,.3)",
+                position:"relative",
+              }}>
+                <PhotoIllustration type={p.type} bg={p.bg} fg={p.fg} size={p.size}/>
+                
+                {/* Handwritten label */}
+                <div style={{
+                  position:"absolute", bottom:3, left:0, right:0,
+                  textAlign:"center",
+                  fontFamily:"'Caveat',cursive",
+                  fontSize: Math.max(9, p.size / 7) + "px",
+                  fontWeight:600,
+                  color: P.ink,
+                  lineHeight:1,
+                  padding:"0 3px",
+                  overflow:"hidden",
+                }}>
+                  {p.label.length > 12 ? p.label.slice(0,11) + "…" : p.label}
+                </div>
+              </div>
+              {hovered === p.uid && (
+                <div className="fw-caption">{p.caption}</div>
+              )}
+            </div>
+          ))}
+
+          {/* ═══ REAL UPLOADED PHOTOS ═══ */}
+          {realPhotos.map((p) => (
+            <div
+              key={p.id}
+              className="fw-card"
+              style={{
+                position: "absolute",
+                left: p.x, 
+                top: p.y,
+                width: 100, 
+                height: 120,
+                transform: `rotate(${p.rot}deg)`,
+                zIndex: Math.floor(p.y) + 20,
+              }}
+            >
+              {/* The Paper Frame */}
+              <div style={{
+                background: P.paper,
+                padding: "6px 6px 20px 6px",
+                width: "100%", height: "100%",
+                boxShadow: "1px 2px 8px rgba(0,0,0,.55)",
+                position: "relative",
+              }}>
+                <img 
+                  src={p.url} 
+                  alt="Player Upload" 
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+                />
+              </div>
+            </div>
+          ))}
 
           {/* New uploaded photo */}
           {newPhoto && (
