@@ -164,7 +164,7 @@ function PhotoIllustration({ type, bg, fg, size }) {
 
 const WORLD_W = 3600;
 const WORLD_H = 2000;
-const NUM_PHOTOS = 88;
+const NUM_PHOTOS = 0;
 
 function buildPhotoLayout() {
   const rng = seededRng(77);
@@ -274,8 +274,10 @@ export default function ForestPhotoWall() {
     setUploadPulse(true);
     
     console.log("1. Sending heavy photo to the Warehouse...");
-
-    const fileName = `${Date.now()}-${file.name}`;
+    
+    const fileExtension = file.name.split('.').pop();
+    const safeRandomString = Math.random().toString(36).substring(2, 10);
+    const fileName = `${Date.now()}-${safeRandomString}.${fileExtension}`;
 
     const { data: storageData, error: storageError } = await supabase.storage
       .from('wall-photos')
@@ -302,8 +304,8 @@ export default function ForestPhotoWall() {
       .insert([
         { 
           url: imageUrl, 
-          x: -pan.x + (window.innerWidth / 2) - 50, 
-          y: -pan.y + (window.innerHeight / 2) - 50, 
+          x: -pan.x + (window.innerWidth / 2) - 50 + (Math.random() * 300 - 150), 
+          y: -pan.y + (window.innerHeight / 2) - 50 + (Math.random() * 200 - 100), 
           rot: (Math.random() - 0.5) * 22 
         }
       ]);
@@ -312,7 +314,6 @@ export default function ForestPhotoWall() {
       console.error("Catalog error!", dbError);
     } else {
       console.log("SUCCESS! Photo is permanently saved in the cloud.");
-      setNewPhoto(true);
       const today = new Date().toDateString();
       localStorage.setItem("lastUploadDate", today);
     }
@@ -752,7 +753,7 @@ export default function ForestPhotoWall() {
                 width: 100, 
                 height: 120,
                 transform: `rotate(${p.rot}deg)`,
-                zIndex: Math.floor(p.y) + 20,
+                zIndex: Math.floor(p.y) + 1000,
               }}
             >
               {/* The Paper Frame */}
@@ -771,28 +772,6 @@ export default function ForestPhotoWall() {
               </div>
             </div>
           ))}
-
-          {/* New uploaded photo */}
-          {newPhoto && (
-            <div className="new-drop" style={{
-              position:"absolute", left:500, top:360,
-              width:88, height:105, zIndex:5000,
-              filter:"drop-shadow(0 0 16px rgba(232,200,64,.7))",
-            }}>
-              <div style={{
-                background:P.paper, padding:"5px 5px 18px 5px",
-                width:"100%", height:"100%",
-                boxShadow:"0 0 20px rgba(232,200,64,.4)",
-                position:"relative",
-              }}>
-                <IllustrationArt bg="#f0e880" fg="#7a7800" size={78}/>
-                <div style={{position:"absolute",bottom:3,left:0,right:0,textAlign:"center",fontFamily:"'Caveat',cursive",fontSize:"10px",fontWeight:700,color:P.ink}}>
-                  Just posted!
-                </div>
-              </div>
-              <div style={{position:"absolute",top:-6,left:"50%",transform:"translateX(-50%)",width:10,height:10,borderRadius:"50%",background:"#c84040",boxShadow:"0 0 8px rgba(200,64,64,.6)"}}/>
-            </div>
-          )}
 
         </div>
 
