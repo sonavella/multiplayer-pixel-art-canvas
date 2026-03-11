@@ -210,6 +210,7 @@ export default function ForestPhotoWall() {
   const dragRef = useRef(null);
   const fileInputRef = useRef(null);
   const [hovered, setHovered] = useState(null);
+  const [draggingPhoto, setDraggingPhoto] = useState(null);
   const [newPhoto, setNewPhoto] = useState(false);
   const [uploadPulse, setUploadPulse] = useState(false);
   const [tick, setTick] = useState(0);
@@ -298,22 +299,29 @@ export default function ForestPhotoWall() {
     const imageUrl = publicData.publicUrl;
 
     console.log("3. Writing the Index Card to the Database...");
-   
-    const { error: dbError } = await supabase
-      .from('pinned_photos')
-      .insert([
-        { 
-          url: imageUrl, 
-          x: -pan.x + (window.innerWidth / 2) - 50 + (Math.random() * 300 - 150), 
-          y: -pan.y + (window.innerHeight / 2) - 50 + (Math.random() * 200 - 100), 
-          rot: (Math.random() - 0.5) * 22 
-        }
-      ]);
+    const userLabel = prompt("Write a short label for the bottom of the photo:") || "My Photo";
+    const userCaption = prompt("Write a secret message for when people hover over it:") || "A memory...";
+    const hasString = Math.random() > 0.5;
 
+    const newPhotoData = { 
+      url: imageUrl, 
+      x: -pan.x + (window.innerWidth / 2) - 50 + (Math.random() * 300 - 150), 
+      y: -pan.y + (window.innerHeight / 2) - 50 + (Math.random() * 200 - 100), 
+      rot: (Math.random() - 0.5) * 22,
+      label: userLabel,
+      caption: userCaption,
+      stringFrom: hasString
+    };
+   
+    const {data: insertedData, error: dbError } = await supabase
+      .from('pinned_photos')
+      .insert([newPhotoData])
+      .select();
     if (dbError) {
       console.error("Catalog error!", dbError);
-    } else {
+    } else if (insertedData && insertedData.length > 0) {
       console.log("SUCCESS! Photo is permanently saved in the cloud.");
+      setRealPhotos(prevPhotos => [...prevPhotos, insertedData[0]]);
       const today = new Date().toDateString();
       localStorage.setItem("lastUploadDate", today);
     }
@@ -338,6 +346,49 @@ export default function ForestPhotoWall() {
   ];
 
   const explored = Math.min(100, Math.round(Math.max(0,-pan.x) / Math.max(1, WORLD_W - window.innerWidth) * 100));
+
+
+  const handlePhotoMouseDown = (e, photo) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setDraggingPhoto({
+      id: photo.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: photo.x,
+      origY: photo.y
+    });
+  };
+
+
+  const handleWallMouseMove = (e) => {
+    if (!draggingPhoto) return;
+    
+    const dx = e.clientX - draggingPhoto.startX;
+    const dy = e.clientY - draggingPhoto.startY;
+
+    setRealPhotos((prev) => prev.map(p => 
+      p.id === draggingPhoto.id 
+        ? { ...p, x: draggingPhoto.origX + dx, y: draggingPhoto.origY + dy } 
+        : p
+    ));
+  };
+
+  const handleWallMouseUp = async () => {
+    if (!draggingPhoto) return;
+
+    const finalPhoto = realPhotos.find(p => p.id === draggingPhoto.id);
+    setDraggingPhoto(null);
+
+    if (finalPhoto) {
+      const { error } = await supabase
+        .from('pinned_photos')
+        .update({ x: finalPhoto.x, y: finalPhoto.y })
+        .eq('id', finalPhoto.id);
+        
+      if (error) console.error("Failed to save new position:", error);
+    }
+  };
 
   return (
     <>
@@ -417,7 +468,7 @@ export default function ForestPhotoWall() {
         ::-webkit-scrollbar { display:none; }
       `}</style>
 
-      <div className="fw-root" onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}>
+      <div className="fw-root" onMouseDown={onDown} onMouseMove={(e) => { onMove(e); handleWallMouseMove(e); }} onMouseUp={() => { onUp(); handleWallMouseUp(); }} onMouseLeave={() => { onUp(); handleWallMouseUp(); }}>
 
         {/* ═══════════ WORLD ═══════════ */}
         <div className="fw-world" style={{ transform:`translate(${pan.x}px,${pan.y}px)`, width:WORLD_W, height:WORLD_H }}>
@@ -742,10 +793,13 @@ export default function ForestPhotoWall() {
           ))}
 
           {/* ═══ REAL UPLOADED PHOTOS ═══ */}
-          {realPhotos.map((p) => (
+          {realPhotos.map((p,index) => (
             <div
               key={p.id}
               className="fw-card"
+              onMouseDown={(e) => handlePhotoMouseDown(e, p)}
+              onMouseEnter={() => setHovered(p.id)}
+              onMouseLeave={() => setHovered(null)}
               style={{
                 position: "absolute",
                 left: p.x, 
@@ -754,8 +808,24 @@ export default function ForestPhotoWall() {
                 height: 120,
                 transform: `rotate(${p.rot}deg)`,
                 zIndex: Math.floor(p.y) + 1000,
+                cursor: draggingPhoto?.id === p.id ? "grabbing" : "grab"
               }}
             >
+              {p.stringFrom ? (
+                <div style={{
+                  position:"absolute", top:-18, left:"50%", transform:"translateX(-50%)",
+                  width:1, height:18, background:P.ropeStr, opacity:.7,
+                }}/>
+              ) : null}
+
+              <div style={{
+                position: "absolute", top: p.stringFrom ? -22 : -6, left: "50%",
+                transform: "translateX(-50%)",
+                width: 10, height: 10, borderRadius: "50%",
+                background: ["#c84040","#4060c8","#c88040","#408040","#c04080"][index % 5],
+                boxShadow: `0 0 6px rgba(0,0,0,.6)`,
+                zIndex: 2,
+              }}/>
               {/* The Paper Frame */}
               <div style={{
                 background: P.paper,
@@ -767,12 +837,25 @@ export default function ForestPhotoWall() {
                 <img 
                   src={p.url} 
                   alt="Player Upload" 
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+                  draggable="false"
+                  style={{ width: "100%", height: "100%", objectFit: "cover",pointerEvents: "none"}} 
                 />
-              </div>
-            </div>
-          ))}
-
+                {p.label && (
+                  <div style={{
+                    position:"absolute", bottom:3, left:0, right:0,
+                    textAlign:"center", fontFamily:"'Caveat',cursive",
+                    fontSize: "14px", fontWeight:600, color: P.ink,
+                    lineHeight:1, padding:"0 3px", overflow:"hidden",
+                  }}>
+                    {p.label.length > 12 ? p.label.slice(0,11) + "…" : p.label}
+                  </div>
+                )}
+              </div>
+              {hovered === p.id && p.caption && (
+                <div className="fw-caption">{p.caption}</div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* ═══ UI OVERLAY ═══ */}
