@@ -192,6 +192,15 @@ function Leaf({ x, y, rot, scale = 1, color = P.leafBright, opacity = 0.85 }) {
     </g>
   );
 }
+const getMyUserId = () => {
+  let id = localStorage.getItem("my_secret_id");
+  if (!id) {
+    id = "user_" + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem("my_secret_id", id);
+  }
+  return id;
+};
+const MY_USER_ID = getMyUserId();
 
 function HangingBulb({ x, wireTop, glowAmt }) {
   return (
@@ -224,20 +233,20 @@ export default function ForestPhotoWall() {
   useEffect(() => {
     const fetchPhotos = async () => {
       console.log("Checking the Catalog for saved photos...");
-      
+      const exactly24HoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from('pinned_photos')
-        .select('*');
+        .select('*')
+        .gte('created_at', exactly24HoursAgo); 
 
       if (error) {
         console.error("Failed to read the Catalog!", error);
       } else {
-        console.log("Found photos!", data);
         setRealPhotos(data); 
       }
     };
     fetchPhotos();
-  }, []); 
+  }, []);
 
   const onDown = useCallback((e) => {
     if (e.target.closest("button")) return;
@@ -310,7 +319,8 @@ export default function ForestPhotoWall() {
       rot: (Math.random() - 0.5) * 22,
       label: userLabel,
       caption: userCaption,
-      stringFrom: hasString
+      stringFrom: hasString,
+      owner_id: MY_USER_ID
     };
    
     const {data: insertedData, error: dbError } = await supabase
@@ -351,6 +361,10 @@ export default function ForestPhotoWall() {
   const handlePhotoMouseDown = (e, photo) => {
     e.stopPropagation();
     e.preventDefault();
+    if (photo.owner_id !== MY_USER_ID) {
+      console.log("Hands off! This isn't your photo.");
+      return; // Stops the drag completely!
+    }
     setDraggingPhoto({
       id: photo.id,
       startX: e.clientX,
@@ -808,7 +822,7 @@ export default function ForestPhotoWall() {
                 height: 120,
                 transform: `rotate(${p.rot}deg)`,
                 zIndex: Math.floor(p.y) + 1000,
-                cursor: draggingPhoto?.id === p.id ? "grabbing" : "grab"
+                cursor: p.owner_id === MY_USER_ID ? (draggingPhoto?.id === p.id ? "grabbing" : "grab") : "default"
               }}
             >
               {p.stringFrom ? (
