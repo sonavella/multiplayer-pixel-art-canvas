@@ -403,6 +403,32 @@ export default function ForestPhotoWall() {
       if (error) console.error("Failed to save new position:", error);
     }
   };
+  // 👉 THE LIKE FUNCTION
+  const handleLikeClick = async (e, photo) => {
+    e.stopPropagation(); 
+    e.preventDefault();
+
+    const myLikes = JSON.parse(localStorage.getItem("my_liked_photos") || "[]");
+    if (myLikes.includes(photo.id)) {
+      console.log("You already liked this masterpiece!");
+      return;
+    }
+
+    const newLikesCount = (photo.likes || 0) + 1;
+    setRealPhotos((prev) => prev.map(p => 
+      p.id === photo.id ? { ...p, likes: newLikesCount } : p
+    ));
+
+    myLikes.push(photo.id);
+    localStorage.setItem("my_liked_photos", JSON.stringify(myLikes));
+
+    const { error } = await supabase
+      .from('pinned_photos')
+      .update({ likes: newLikesCount })
+      .eq('id', photo.id);
+      
+    if (error) console.error("Failed to save like:", error);
+  };
 
   return (
     <>
@@ -807,69 +833,100 @@ export default function ForestPhotoWall() {
           ))}
 
           {/* ═══ REAL UPLOADED PHOTOS ═══ */}
-          {realPhotos.map((p,index) => (
-            <div
-              key={p.id}
-              className="fw-card"
-              onMouseDown={(e) => handlePhotoMouseDown(e, p)}
-              onMouseEnter={() => setHovered(p.id)}
-              onMouseLeave={() => setHovered(null)}
-              style={{
-                position: "absolute",
-                left: p.x, 
-                top: p.y,
-                width: 100, 
-                height: 120,
-                transform: `rotate(${p.rot}deg)`,
-                zIndex: Math.floor(p.y) + 1000,
-                cursor: p.owner_id === MY_USER_ID ? (draggingPhoto?.id === p.id ? "grabbing" : "grab") : "default"
-              }}
-            >
-              {p.stringFrom ? (
-                <div style={{
-                  position:"absolute", top:-18, left:"50%", transform:"translateX(-50%)",
-                  width:1, height:18, background:P.ropeStr, opacity:.7,
-                }}/>
-              ) : null}
+          {realPhotos.map((p, index) => {
+            // 👉 1. Check if the user has liked this specific photo
+            const myLikes = JSON.parse(localStorage.getItem("my_liked_photos") || "[]");
+            const hasLiked = myLikes.includes(p.id);
 
-              <div style={{
-                position: "absolute", top: p.stringFrom ? -22 : -6, left: "50%",
-                transform: "translateX(-50%)",
-                width: 10, height: 10, borderRadius: "50%",
-                background: ["#c84040","#4060c8","#c88040","#408040","#c04080"][index % 5],
-                boxShadow: `0 0 6px rgba(0,0,0,.6)`,
-                zIndex: 2,
-              }}/>
-              {/* The Paper Frame */}
-              <div style={{
-                background: P.paper,
-                padding: "6px 6px 20px 6px",
-                width: "100%", height: "100%",
-                boxShadow: "1px 2px 8px rgba(0,0,0,.55)",
-                position: "relative",
-              }}>
-                <img 
-                  src={p.url} 
-                  alt="Player Upload" 
-                  draggable="false"
-                  style={{ width: "100%", height: "100%", objectFit: "cover",pointerEvents: "none"}} 
-                />
-                {p.label && (
+            // 👉 2. We use 'return' to draw the card
+            return (
+              <div
+                key={p.id}
+                className="fw-card"
+                onMouseDown={(e) => handlePhotoMouseDown(e, p)}
+                onMouseEnter={() => setHovered(p.id)}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  position: "absolute",
+                  left: p.x, 
+                  top: p.y,
+                  width: 100, 
+                  height: 120,
+                  transform: `rotate(${p.rot}deg)`,
+                  zIndex: Math.floor(p.y) + 1000,
+                  cursor: p.owner_id === MY_USER_ID ? (draggingPhoto?.id === p.id ? "grabbing" : "grab") : "default"
+                }}
+              >
+                {p.stringFrom ? (
                   <div style={{
-                    position:"absolute", bottom:3, left:0, right:0,
-                    textAlign:"center", fontFamily:"'Caveat',cursive",
-                    fontSize: "14px", fontWeight:600, color: P.ink,
-                    lineHeight:1, padding:"0 3px", overflow:"hidden",
-                  }}>
-                    {p.label.length > 12 ? p.label.slice(0,11) + "…" : p.label}
+                    position:"absolute", top:-18, left:"50%", transform:"translateX(-50%)",
+                    width:1, height:18, background:P.ropeStr, opacity:.7,
+                  }}/>
+                ) : null}
+
+                <div style={{
+                  position: "absolute", top: p.stringFrom ? -22 : -6, left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 10, height: 10, borderRadius: "50%",
+                  background: ["#c84040","#4060c8","#c88040","#408040","#c04080"][index % 5],
+                  boxShadow: `0 0 6px rgba(0,0,0,.6)`,
+                  zIndex: 2,
+                }}/>
+
+                {/* The Paper Frame */}
+                <div style={{
+                  background: P.paper,
+                  padding: "6px 6px 20px 6px",
+                  width: "100%", height: "100%",
+                  boxShadow: "1px 2px 8px rgba(0,0,0,.55)",
+                  position: "relative",
+                }}>
+                  <img 
+                    src={p.url} 
+                    alt="Player Upload" 
+                    draggable="false"
+                    style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none"}} 
+                  />
+                  
+                  {/* 👉 THE UPGRADED LIKE BUTTON */}
+                  <div 
+                    onMouseDown={(e) => handleLikeClick(e, p)}
+                    style={{
+                      position: "absolute", top: 10, right: 10,
+                      background: hasLiked ? "#ffe6e6" : "rgba(255, 255, 255, 0.9)",
+                      padding: "2px 6px", borderRadius: "12px",
+                      cursor: hasLiked ? "default" : "pointer", 
+                      pointerEvents: "auto",
+                      display: "flex", alignItems: "center", gap: "4px",
+                      fontFamily: "'Caveat', cursive", fontSize: "14px", fontWeight: "bold", color: P.ink,
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.3)", zIndex: 10,
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    {hasLiked ? "❤️" : "🤍"} {p.likes || 0}
                   </div>
+
+                  {/* BOTTOM LABEL TEXT */}
+                  {p.label && (
+                    <div style={{
+                      position:"absolute", bottom:3, left:0, right:0,
+                      textAlign:"center", fontFamily:"'Caveat',cursive",
+                      fontSize: "14px", fontWeight:600, color: P.ink,
+                      lineHeight:1, padding:"0 3px", overflow:"hidden",
+                    }}>
+                      {p.label.length > 12 ? p.label.slice(0,11) + "…" : p.label}
+                    </div>
+                  )}
+                </div>
+
+              {/* Hover Caption */}
+                {hovered === p.id && p.caption && (
+                  <div className="fw-caption">{p.caption}</div>
                 )}
               </div>
-              {hovered === p.id && p.caption && (
-                <div className="fw-caption">{p.caption}</div>
-              )}
-            </div>
-          ))}
+            );
+          })}
+
         </div>
 
         {/* ═══ UI OVERLAY ═══ */}
